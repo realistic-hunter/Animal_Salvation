@@ -1,0 +1,24 @@
+# Build output
+target/
+out/
+*.class
+
+# IDE and local workspace files
+.idea/
+*.iml
+.vscode/
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.jks
+
+# Logs and temporary files
+*.log
+*.tmp
+*.bak
+*.swp
