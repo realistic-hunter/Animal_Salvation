@@ -1,7 +1,6 @@
 package com.animalsalvation.algorithm;
 
 import com.animalsalvation.entity.Animal;
-
 import java.util.List;
 
 public final class SearchAlgorithms {
