@@ -6,10 +6,18 @@ import com.animalsalvation.entity.RescueTask;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * 排序算法工具类。
+ *
+ * <p>项目中用它展示冒泡排序、选择排序和快速排序在业务数据上的应用。</p>
+ */
 public final class SortAlgorithms {
     private SortAlgorithms() {
     }
 
+    /**
+     * 冒泡排序：按动物年龄升序排列。
+     */
     public static List<Animal> bubbleSortByAge(List<Animal> source) {
         List<Animal> animals = new ArrayList<>(source);
         for (int i = 0; i < animals.size() - 1; i++) {
@@ -22,6 +30,9 @@ public final class SortAlgorithms {
         return animals;
     }
 
+    /**
+     * 选择排序：按动物发现时间升序排列。
+     */
     public static List<Animal> selectionSortByFoundTime(List<Animal> source) {
         List<Animal> animals = new ArrayList<>(source);
         for (int i = 0; i < animals.size() - 1; i++) {
@@ -36,12 +47,18 @@ public final class SortAlgorithms {
         return animals;
     }
 
+    /**
+     * 快速排序：按动物编号升序排列。
+     */
     public static List<Animal> quickSortById(List<Animal> source) {
         List<Animal> animals = new ArrayList<>(source);
         quickSort(animals, 0, animals.size() - 1);
         return animals;
     }
 
+    /**
+     * 选择排序：按救助任务紧急程度排序。
+     */
     public static List<RescueTask> selectionSortTasksByUrgency(List<RescueTask> source) {
         List<RescueTask> tasks = new ArrayList<>(source);
         for (int i = 0; i < tasks.size() - 1; i++) {
@@ -58,6 +75,9 @@ public final class SortAlgorithms {
         return tasks;
     }
 
+    /**
+     * 把中文紧急程度转换成数字权重，数字越小优先级越高。
+     */
     public static int urgencyWeight(String urgencyLevel) {
         if ("非常紧急".equals(urgencyLevel)) {
             return 1;
@@ -68,6 +88,9 @@ public final class SortAlgorithms {
         return 3;
     }
 
+    /**
+     * 快速排序递归过程。
+     */
     private static void quickSort(List<Animal> animals, int left, int right) {
         if (left >= right) {
             return;
@@ -92,6 +115,9 @@ public final class SortAlgorithms {
         quickSort(animals, i, right);
     }
 
+    /**
+     * 交换列表中两个位置的动物对象。
+     */
     private static void swap(List<Animal> animals, int i, int j) {
         Animal temp = animals.get(i);
         animals.set(i, animals.get(j));

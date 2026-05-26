@@ -3,14 +3,27 @@ package com.animalsalvation.entity;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
+/**
+ * 救助任务实体类。
+ *
+ * <p>记录一条需要志愿者处理的动物救助任务。</p>
+ */
 public class RescueTask {
+    /** 任务编号。 */
     private int taskId;
+    /** 关联动物编号。 */
     private int animalId;
+    /** 任务标题。 */
     private String title;
+    /** 任务地点。 */
     private String location;
+    /** 紧急程度：非常紧急、紧急、普通。 */
     private String urgencyLevel;
+    /** 任务状态，例如待处理、已派发。 */
     private String status;
+    /** 负责志愿者。 */
     private String volunteerName;
+    /** 任务创建时间。 */
     private LocalDateTime createTime;
 
     public RescueTask(int taskId, int animalId, String title, String location, String urgencyLevel,

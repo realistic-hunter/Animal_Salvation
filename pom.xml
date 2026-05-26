@@ -9,6 +9,7 @@
     <version>1.0.0</version>
     <name>Animal_Salvation</name>
 
+    <!-- 项目基础配置：统一源码编码、Java 编译版本和 JavaFX 版本。 -->
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>25</maven.compiler.source>
@@ -16,6 +17,7 @@
         <javafx.version>25</javafx.version>
     </properties>
 
+    <!-- JavaFX 控件依赖，界面中的按钮、表格、输入框等都来自 javafx-controls。 -->
     <dependencies>
         <dependency>
             <groupId>org.openjfx</groupId>
@@ -24,6 +26,7 @@
         </dependency>
     </dependencies>
 
+    <!-- 构建插件：编译 Java 源码，并通过 javafx:run 启动桌面程序。 -->
     <build>
         <plugins>
             <plugin>

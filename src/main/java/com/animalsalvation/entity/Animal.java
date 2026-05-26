@@ -3,16 +3,31 @@ package com.animalsalvation.entity;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
+/**
+ * 动物实体类。
+ *
+ * <p>一条 Animal 对象对应系统中一只被救助或待领养的动物。</p>
+ */
 public class Animal {
+    /** 动物唯一编号。 */
     private int id;
+    /** 动物名称。 */
     private String name;
+    /** 动物类型，例如猫、狗、其他。 */
     private String type;
+    /** 动物性别。 */
     private String gender;
+    /** 动物年龄。 */
     private int age;
+    /** 健康情况说明。 */
     private String healthStatus;
+    /** 救助处理状态。 */
     private String rescueStatus;
+    /** 领养状态。 */
     private String adoptStatus;
+    /** 发现地点。 */
     private String foundLocation;
+    /** 发现时间。 */
     private LocalDateTime foundTime;
 
     public Animal(int id, String name, String type, String gender, int age, String healthStatus,

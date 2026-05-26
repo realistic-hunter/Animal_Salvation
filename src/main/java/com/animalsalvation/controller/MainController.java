@@ -4,7 +4,9 @@ import com.animalsalvation.entity.AdoptionApplication;
 import com.animalsalvation.entity.Animal;
 import com.animalsalvation.entity.OperationRecord;
 import com.animalsalvation.entity.RescueTask;
+import com.animalsalvation.entity.User;
 import com.animalsalvation.service.AnimalService;
+import com.animalsalvation.service.UserService;
 
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -15,9 +17,11 @@ import javafx.scene.Parent;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
+import javafx.scene.control.PasswordField;
 import javafx.scene.control.Separator;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
@@ -28,70 +32,213 @@ import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 
+import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.List;
 
+/**
+ * 主界面控制器。
+ *
+ * <p>这个类负责界面设计和页面切换：先显示登录页，登录成功后根据用户角色显示不同菜单。</p>
+ */
 public class MainController {
-    private final AnimalService animalService = new AnimalService();
-    private final BorderPane root = new BorderPane();
+    /** 界面标题和统一配色，集中放在这里方便调整整体风格。 */
+    private static final String APP_TITLE = "流浪动物救助调度管理系统";
+    static final String BG = "#F4F1EC";
+    static final String PANEL = "#FFFFFF";
+    static final String SIDEBAR = "#273238";
+    static final String PRIMARY = "#4D7466";
+    static final String TEXT = "#26312D";
+    static final String MUTED = "#6B756F";
 
-    private final ObservableList<Animal> animalRows = FXCollections.observableArrayList();
-    private final ObservableList<RescueTask> pendingTaskRows = FXCollections.observableArrayList();
-    private final ObservableList<RescueTask> handledTaskRows = FXCollections.observableArrayList();
-    private final ObservableList<AdoptionApplication> pendingApplyRows = FXCollections.observableArrayList();
-    private final ObservableList<AdoptionApplication> reviewedApplyRows = FXCollections.observableArrayList();
-    private final ObservableList<OperationRecord> operationRows = FXCollections.observableArrayList();
+    /** 动物救助业务层。 */
+    final AnimalService animalService = new AnimalService();
+    /** 用户登录和用户管理业务层。 */
+    final UserService userService = new UserService();
+    /** 整个 JavaFX 界面的根布局。 */
+    final BorderPane root = new BorderPane();
 
-    private final TableView<Animal> animalTable = new TableView<>();
-    private final TableView<Animal> searchTable = new TableView<>();
-    private final TableView<RescueTask> pendingTaskTable = new TableView<>();
-    private final TableView<RescueTask> handledTaskTable = new TableView<>();
-    private final TableView<AdoptionApplication> pendingApplyTable = new TableView<>();
-    private final TableView<AdoptionApplication> reviewedApplyTable = new TableView<>();
-    private final TableView<OperationRecord> operationTable = new TableView<>();
+    /** 当前登录用户；为 null 时表示还没有登录。 */
+    User currentUser;
 
+    /** 以下 ObservableList 是表格的数据源，refreshAll 会刷新这些数据。 */
+    final ObservableList<Animal> animalRows = FXCollections.observableArrayList();
+    final ObservableList<RescueTask> pendingTaskRows = FXCollections.observableArrayList();
+    final ObservableList<RescueTask> handledTaskRows = FXCollections.observableArrayList();
+    final ObservableList<AdoptionApplication> pendingApplyRows = FXCollections.observableArrayList();
+    final ObservableList<AdoptionApplication> reviewedApplyRows = FXCollections.observableArrayList();
+    final ObservableList<OperationRecord> operationRows = FXCollections.observableArrayList();
+    final ObservableList<User> userRows = FXCollections.observableArrayList();
+
+    final TableView<Animal> animalTable = new TableView<>();
+    final TableView<Animal> searchTable = new TableView<>();
+    final TableView<RescueTask> pendingTaskTable = new TableView<>();
+    final TableView<RescueTask> handledTaskTable = new TableView<>();
+    final TableView<AdoptionApplication> pendingApplyTable = new TableView<>();
+    final TableView<AdoptionApplication> reviewedApplyTable = new TableView<>();
+    final TableView<OperationRecord> operationTable = new TableView<>();
+    final TableView<User> userTable = new TableView<>();
+
+    /** 创建初始界面，程序启动后先进入登录页。 */
     public Parent createView() {
+        tryLoadUsers();
         root.setPrefSize(1180, 720);
-        root.setLeft(createMenu());
-        showAnimalManagementView();
-        refreshAll();
+        root.setStyle("-fx-background-color: " + BG + "; -fx-font-family: 'Microsoft YaHei', 'Segoe UI';");
+        showLoginView();
         return root;
     }
 
+    /** 初始登录页面。 */
+    private void showLoginView() {
+        root.setLeft(null);
+        root.setTop(null);
+
+        VBox card = new VBox(18);
+        card.setMaxWidth(420);
+        card.setPadding(new Insets(34));
+        card.setStyle("-fx-background-color: " + PANEL + "; -fx-background-radius: 8;"
+                + "-fx-border-color: #DED8CF; -fx-border-radius: 8;");
+
+        Label title = new Label(APP_TITLE);
+        title.setStyle("-fx-font-size: 24px; -fx-font-weight: bold; -fx-text-fill: " + TEXT + ";");
+        Label subtitle = new Label("请输入账号进入对应角色工作台");
+        subtitle.setStyle("-fx-font-size: 13px; -fx-text-fill: " + MUTED + ";");
+
+        TextField usernameField = new TextField();
+        usernameField.setPromptText("用户名");
+        PasswordField passwordField = new PasswordField();
+        passwordField.setPromptText("密码");
+        styleInput(usernameField);
+        styleInput(passwordField);
+
+        Button loginButton = primaryButton("登录");
+        loginButton.setMaxWidth(Double.MAX_VALUE);
+        loginButton.setOnAction(event -> {
+            try {
+                currentUser = userService.login(usernameField.getText(), passwordField.getText());
+                trySaveUsers();
+                showMainShell();
+            } catch (RuntimeException exception) {
+                showError(exception.getMessage());
+            }
+        });
+
+        card.getChildren().addAll(title, subtitle, fieldBlock("用户名", usernameField),
+                fieldBlock("密码", passwordField), loginButton);
+
+        BorderPane loginPane = new BorderPane();
+        loginPane.setStyle("-fx-background-color: " + BG + ";");
+        loginPane.setCenter(card);
+        BorderPane.setAlignment(card, Pos.CENTER);
+        root.setCenter(loginPane);
+    }
+
+    /** 登录成功后生成主界面框架，并按角色打开默认页面。 */
+    private void showMainShell() {
+        root.setLeft(createMenu());
+        createRoleController().showDefaultView();
+        refreshAll();
+    }
+
+    private RoleController createRoleController() {
+        if (isAdmin()) {
+            return new AdminController(this);
+        }
+        if (isStaff()) {
+            return new StaffController(this);
+        }
+        return new AdopterController(this);
+    }
+
+    /** 根据当前用户角色创建左侧菜单。 */
     private VBox createMenu() {
         VBox menu = new VBox(8);
-        menu.setPrefWidth(220);
-        menu.setPadding(new Insets(20));
-        menu.setStyle("-fx-background-color: #263238;");
+        menu.setPrefWidth(236);
+        menu.setPadding(new Insets(22));
+        menu.setStyle("-fx-background-color: " + SIDEBAR + ";");
 
         Label title = new Label("动物救助调度");
         title.setStyle("-fx-text-fill: white; -fx-font-size: 20px; -fx-font-weight: bold;");
-        menu.getChildren().add(title);
+        Label user = new Label(currentUser.getRealName() + "  " + roleText(currentUser.getRole()));
+        user.setStyle("-fx-text-fill: #B7C4BE; -fx-font-size: 12px;");
 
-        menu.getChildren().add(menuButton("动物信息管理", event -> showAnimalManagementView()));
-        menu.getChildren().add(menuButton("救助任务管理", event -> showRescueTaskView()));
-        menu.getChildren().add(menuButton("领养申请管理", event -> showAdoptionView()));
-        menu.getChildren().add(menuButton("查询与排序", event -> showSearchAndSortView()));
-        menu.getChildren().add(menuButton("操作历史", event -> showOperationHistoryView()));
+        menu.getChildren().addAll(title, user, gap(10));
+        createRoleController().addMenuItems(menu);
+        menu.getChildren().add(menuButton("个人信息", event -> showProfileView()));
+
+        Region spacer = new Region();
+        VBox.setVgrow(spacer, Priority.ALWAYS);
+        Button logout = menuButton("退出登录", event -> {
+            currentUser = null;
+            showLoginView();
+        });
+        menu.getChildren().addAll(spacer, logout);
         return menu;
     }
 
-    private Button menuButton(String text, javafx.event.EventHandler<ActionEvent> handler) {
+    /** 创建左侧菜单按钮。 */
+    Button menuButton(String text, javafx.event.EventHandler<ActionEvent> handler) {
         Button button = new Button(text);
         button.setMaxWidth(Double.MAX_VALUE);
         button.setAlignment(Pos.CENTER_LEFT);
-        button.setStyle("-fx-background-color: transparent; -fx-text-fill: #ECEFF1; -fx-font-size: 14px;");
+        button.setPadding(new Insets(10, 12, 10, 12));
+        button.setStyle("-fx-background-color: transparent; -fx-text-fill: #EEF3F0; -fx-font-size: 14px;"
+                + "-fx-background-radius: 6;");
+        button.setOnMouseEntered(event -> button.setStyle("-fx-background-color: #3A4943; -fx-text-fill: white;"
+                + "-fx-font-size: 14px; -fx-background-radius: 6;"));
+        button.setOnMouseExited(event -> button.setStyle("-fx-background-color: transparent; -fx-text-fill: #EEF3F0;"
+                + "-fx-font-size: 14px; -fx-background-radius: 6;"));
         button.setOnAction(handler);
         return button;
     }
 
-    private void showAnimalManagementView() {
-        BorderPane content = page("动物信息管理");
-        Button addButton = new Button("新增动物");
+    /** 所有角色都能进入的个人信息页面。 */
+    void showProfileView() {
+        BorderPane content = page();
+        Button saveButton = primaryButton("保存资料");
+        Button passwordButton = secondaryButton("修改密码");
+
+        TextField realName = new TextField(currentUser.getRealName());
+        TextField phone = new TextField(currentUser.getPhone());
+        TextField email = new TextField(currentUser.getEmail());
+        styleInput(realName);
+        styleInput(phone);
+        styleInput(email);
+
+        GridPane form = form();
+        addFormRow(form, 0, "用户名", new Label(currentUser.getUsername()));
+        addFormRow(form, 1, "角色", new Label(roleText(currentUser.getRole())));
+        addFormRow(form, 2, "姓名", realName);
+        addFormRow(form, 3, "电话", phone);
+        addFormRow(form, 4, "邮箱", email);
+        addFormRow(form, 5, "最近登录", new Label(currentUser.getLastLoginTimeText()));
+
+        saveButton.setOnAction(event -> {
+            try {
+                currentUser = userService.updatePersonalInfo(currentUser.getId(),
+                        realName.getText(), phone.getText(), email.getText());
+                trySaveUsers();
+                root.setLeft(createMenu());
+                showInfo("个人信息已保存。");
+            } catch (RuntimeException exception) {
+                showError(exception.getMessage());
+            }
+        });
+        passwordButton.setOnAction(event -> showChangePasswordDialog());
+        content.setTop(toolbar("个人信息", "维护自己的联系方式和登录密码。", saveButton, passwordButton));
+        content.setCenter(withMargin(formPanel(form)));
+        root.setCenter(content);
+    }
+
+    /** 动物信息管理页面。 */
+    void showAnimalManagementView() {
+        BorderPane content = page();
+        Button addButton = primaryButton("新增动物");
         addButton.setOnAction(event -> showAddAnimalDialog());
-        content.setTop(toolbar("动物信息管理", addButton));
+        content.setTop(toolbar("动物信息", "登记、查看和维护救助动物基础信息。", addButton));
 
         configureAnimalTable(animalTable, animalRows);
         content.setCenter(withMargin(animalTable));
@@ -99,81 +246,31 @@ public class MainController {
         refreshAll();
     }
 
-    private void showRescueTaskView() {
-        BorderPane content = page("救助任务管理");
-        Button addButton = new Button("新增任务");
-        addButton.setOnAction(event -> showAddTaskDialog());
-        Button dispatchButton = new Button("派发下一任务");
-        dispatchButton.setOnAction(event -> {
-            RescueTask task = animalService.dispatchNextTask();
-            if (task == null) {
-                showInfo("当前没有待处理救助任务");
-            } else {
-                showInfo("已派发：" + task.getTitle());
-            }
-            refreshAll();
-        });
-        content.setTop(toolbar("救助任务管理", addButton, dispatchButton));
-
-        configureTaskTable(pendingTaskTable, pendingTaskRows);
-        configureTaskTable(handledTaskTable, handledTaskRows);
-        VBox tables = new VBox(10, sectionTitle("待处理任务：优先队列 + 普通队列"), pendingTaskTable,
-                sectionTitle("已派发任务"), handledTaskTable);
-        VBox.setVgrow(pendingTaskTable, Priority.ALWAYS);
-        VBox.setVgrow(handledTaskTable, Priority.ALWAYS);
-        content.setCenter(withMargin(tables));
-        root.setCenter(content);
-        refreshAll();
-    }
-
-    private void showAdoptionView() {
-        BorderPane content = page("领养申请管理");
-        Button addButton = new Button("提交申请");
-        addButton.setOnAction(event -> showAddApplicationDialog());
-        Button passButton = new Button("审核通过");
-        passButton.setOnAction(event -> reviewApplication("审核通过"));
-        Button rejectButton = new Button("审核拒绝");
-        rejectButton.setOnAction(event -> reviewApplication("审核拒绝"));
-        content.setTop(toolbar("领养申请管理", addButton, passButton, rejectButton));
-
-        configureApplicationTable(pendingApplyTable, pendingApplyRows);
-        configureApplicationTable(reviewedApplyTable, reviewedApplyRows);
-        VBox tables = new VBox(10, sectionTitle("待审核申请：FIFO 队列"), pendingApplyTable,
-                sectionTitle("已审核申请"), reviewedApplyTable);
-        VBox.setVgrow(pendingApplyTable, Priority.ALWAYS);
-        VBox.setVgrow(reviewedApplyTable, Priority.ALWAYS);
-        content.setCenter(withMargin(tables));
-        root.setCenter(content);
-        refreshAll();
-    }
-
-    private void showSearchAndSortView() {
-        BorderPane content = page("查询与排序");
-
+    /** 查询排序页面，展示哈希查找、二分查找、树查找和排序算法。 */
+    void showSearchAndSortView() {
+        BorderPane content = page();
         TextField idField = new TextField();
-        idField.setPromptText("输入动物编号");
-        ComboBox<String> searchMode = new ComboBox<>(FXCollections.observableArrayList("哈希查找", "二分查找", "二叉排序树查找"));
-        searchMode.getSelectionModel().selectFirst();
-        Button searchButton = new Button("查询");
-
-        ComboBox<String> sortMode = new ComboBox<>(FXCollections.observableArrayList(
-                "快速排序：按编号升序", "冒泡排序：按年龄升序", "选择排序：按发现时间升序", "二叉排序树：中序遍历"));
-        sortMode.getSelectionModel().selectFirst();
-        Button sortButton = new Button("排序/遍历");
+        idField.setPromptText("动物编号");
+        styleInput(idField);
+        ComboBox<String> searchMode = combo("哈希查找", "二分查找", "二叉搜索树查找");
+        Button searchButton = primaryButton("查询");
+        ComboBox<String> sortMode = combo("快速排序：按编号升序", "冒泡排序：按年龄升序",
+                "选择排序：按发现时间升序", "二叉搜索树：中序遍历");
+        Button sortButton = secondaryButton("排序/遍历");
 
         searchButton.setOnAction(event -> {
             try {
                 Animal animal = searchAnimal(parsePositiveInt(idField.getText(), "动物编号"), searchMode.getValue());
                 animalRows.setAll(animal == null ? List.of() : List.of(animal));
                 if (animal == null) {
-                    showInfo("没有找到对应动物");
+                    showInfo("没有找到对应动物。");
                 }
             } catch (RuntimeException exception) {
                 showError(exception.getMessage());
             }
         });
         sortButton.setOnAction(event -> {
-            if ("二叉排序树：中序遍历".equals(sortMode.getValue())) {
+            if ("二叉搜索树：中序遍历".equals(sortMode.getValue())) {
                 animalRows.setAll(animalService.treeInOrderAnimals());
             } else {
                 animalRows.setAll(animalService.sortAnimals(sortMode.getValue()));
@@ -182,127 +279,35 @@ public class MainController {
 
         HBox controls = new HBox(10, idField, searchMode, searchButton, new Separator(), sortMode, sortButton);
         controls.setAlignment(Pos.CENTER_LEFT);
-        content.setTop(toolbar("查询与排序", controls));
+        content.setTop(toolbar("查询排序", "展示哈希查找、二分查找、树查找和排序算法。", controls));
         configureAnimalTable(searchTable, animalRows);
         content.setCenter(withMargin(searchTable));
         root.setCenter(content);
         refreshAll();
     }
 
-    private void showOperationHistoryView() {
-        BorderPane content = page("操作历史");
-        Button undoButton = new Button("撤销最近一次操作");
-        undoButton.setOnAction(event -> {
-            OperationRecord record = animalService.undoLastOperation();
-            if (record == null) {
-                showInfo("当前没有可撤销操作");
-            } else {
-                showInfo("已撤销：" + record.getDescription());
-            }
-            refreshAll();
+    void showChangePasswordDialog() {
+        PasswordField oldPassword = new PasswordField();
+        PasswordField newPassword = new PasswordField();
+        styleInput(oldPassword);
+        styleInput(newPassword);
+        Dialog<String> dialog = new Dialog<>();
+        dialog.setTitle("修改密码");
+        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+        GridPane form = form();
+        addFormRow(form, 0, "旧密码", oldPassword);
+        addFormRow(form, 1, "新密码", newPassword);
+        dialog.getDialogPane().setContent(form);
+        protectDialog(dialog, () -> {
+            required(oldPassword.getText(), "旧密码");
+            validatePassword(newPassword.getText());
         });
-        content.setTop(toolbar("操作历史", undoButton));
-
-        configureOperationTable();
-        content.setCenter(withMargin(operationTable));
-        root.setCenter(content);
-        refreshAll();
-    }
-
-    private BorderPane page(String title) {
-        BorderPane content = new BorderPane();
-        content.setPadding(new Insets(18));
-        return content;
-    }
-
-    private HBox toolbar(String title, javafx.scene.Node... actions) {
-        Label heading = new Label(title);
-        heading.setStyle("-fx-font-size: 24px; -fx-font-weight: bold;");
-        HBox toolbar = new HBox(12);
-        toolbar.setAlignment(Pos.CENTER_LEFT);
-        toolbar.getChildren().add(heading);
-        HBox.setHgrow(heading, Priority.ALWAYS);
-        toolbar.getChildren().addAll(actions);
-        return toolbar;
-    }
-
-    private javafx.scene.Node withMargin(javafx.scene.Node node) {
-        BorderPane.setMargin(node, new Insets(16, 0, 0, 0));
-        return node;
-    }
-
-    private Label sectionTitle(String text) {
-        Label label = new Label(text);
-        label.setStyle("-fx-font-size: 15px; -fx-font-weight: bold;");
-        return label;
-    }
-
-    private void configureAnimalTable(TableView<Animal> table, ObservableList<Animal> rows) {
-        table.setItems(rows);
-        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
-        if (!table.getColumns().isEmpty()) {
-            return;
-        }
-        table.getColumns().add(column("编号", "id", 70));
-        table.getColumns().add(column("名称", "name", 90));
-        table.getColumns().add(column("类型", "type", 80));
-        table.getColumns().add(column("性别", "gender", 70));
-        table.getColumns().add(column("年龄", "age", 70));
-        table.getColumns().add(column("健康状态", "healthStatus", 130));
-        table.getColumns().add(column("救助状态", "rescueStatus", 110));
-        table.getColumns().add(column("领养状态", "adoptStatus", 120));
-        table.getColumns().add(column("发现地点", "foundLocation", 140));
-        table.getColumns().add(column("发现时间", "foundTimeText", 150));
-    }
-
-    private void configureTaskTable(TableView<RescueTask> table, ObservableList<RescueTask> rows) {
-        table.setItems(rows);
-        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
-        if (!table.getColumns().isEmpty()) {
-            return;
-        }
-        table.getColumns().add(column("任务编号", "taskId", 80));
-        table.getColumns().add(column("动物编号", "animalId", 80));
-        table.getColumns().add(column("标题", "title", 150));
-        table.getColumns().add(column("地点", "location", 120));
-        table.getColumns().add(column("紧急程度", "urgencyLevel", 90));
-        table.getColumns().add(column("状态", "status", 90));
-        table.getColumns().add(column("志愿者", "volunteerName", 100));
-        table.getColumns().add(column("创建时间", "createTimeText", 140));
-    }
-
-    private void configureApplicationTable(TableView<AdoptionApplication> table, ObservableList<AdoptionApplication> rows) {
-        table.setItems(rows);
-        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
-        if (!table.getColumns().isEmpty()) {
-            return;
-        }
-        table.getColumns().add(column("申请编号", "applyId", 80));
-        table.getColumns().add(column("动物编号", "animalId", 80));
-        table.getColumns().add(column("申请人", "applicantName", 100));
-        table.getColumns().add(column("电话", "phone", 120));
-        table.getColumns().add(column("理由", "reason", 180));
-        table.getColumns().add(column("状态", "status", 90));
-        table.getColumns().add(column("申请时间", "applyTimeText", 140));
-    }
-
-    private void configureOperationTable() {
-        operationTable.setItems(operationRows);
-        operationTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
-        if (!operationTable.getColumns().isEmpty()) {
-            return;
-        }
-        operationTable.getColumns().add(column("操作类型", "operationType", 120));
-        operationTable.getColumns().add(column("目标编号", "targetId", 80));
-        operationTable.getColumns().add(column("说明", "description", 260));
-        operationTable.getColumns().add(column("操作时间", "operationTimeText", 140));
-    }
-
-    private <T> TableColumn<T, Object> column(String title, String property, double width) {
-        TableColumn<T, Object> column = new TableColumn<>(title);
-        column.setCellValueFactory(new PropertyValueFactory<>(property));
-        column.setPrefWidth(width);
-        return column;
+        dialog.setResultConverter(button -> button == ButtonType.OK ? newPassword.getText() : null);
+        dialog.showAndWait().ifPresent(value -> {
+            userService.changePassword(currentUser.getId(), oldPassword.getText(), value);
+            trySaveUsers();
+            showInfo("密码已修改。");
+        });
     }
 
     private void showAddAnimalDialog() {
@@ -313,12 +318,13 @@ public class MainController {
         TextField idField = new TextField(String.valueOf(animalService.nextId()));
         TextField nameField = new TextField();
         ComboBox<String> typeBox = combo("猫", "狗", "其他");
-        ComboBox<String> genderBox = combo("雄", "雌", "未知");
+        ComboBox<String> genderBox = combo("雌", "雄", "未知");
         TextField ageField = new TextField();
         TextField healthField = new TextField("待检查");
         ComboBox<String> rescueBox = combo("待救助", "已救助", "治疗中", "观察中");
         ComboBox<String> adoptBox = combo("待领养", "暂不可领养", "已领养");
         TextField locationField = new TextField();
+        List.of(idField, nameField, ageField, healthField, locationField).forEach(this::styleInput);
 
         GridPane form = form();
         addFormRow(form, 0, "编号", idField);
@@ -348,96 +354,15 @@ public class MainController {
         });
     }
 
-    private void showAddTaskDialog() {
-        Dialog<RescueTask> dialog = new Dialog<>();
-        dialog.setTitle("新增救助任务");
-        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
-
-        TextField taskIdField = new TextField(String.valueOf(animalService.nextTaskId()));
-        TextField animalIdField = new TextField();
-        TextField titleField = new TextField();
-        TextField locationField = new TextField();
-        ComboBox<String> urgencyBox = combo("非常紧急", "紧急", "普通");
-        TextField volunteerField = new TextField();
-
-        GridPane form = form();
-        addFormRow(form, 0, "任务编号", taskIdField);
-        addFormRow(form, 1, "动物编号", animalIdField);
-        addFormRow(form, 2, "标题", titleField);
-        addFormRow(form, 3, "地点", locationField);
-        addFormRow(form, 4, "紧急程度", urgencyBox);
-        addFormRow(form, 5, "志愿者", volunteerField);
-        dialog.getDialogPane().setContent(form);
-
-        protectDialog(dialog, () -> buildTaskFromForm(taskIdField, animalIdField, titleField,
-                locationField, urgencyBox, volunteerField));
-        dialog.setResultConverter(button -> button == ButtonType.OK
-                ? buildTaskFromForm(taskIdField, animalIdField, titleField, locationField, urgencyBox, volunteerField)
-                : null);
-        dialog.showAndWait().ifPresent(task -> {
-            try {
-                animalService.addRescueTask(task);
-                refreshAll();
-            } catch (RuntimeException exception) {
-                showError(exception.getMessage());
-            }
-        });
-    }
-
-    private void showAddApplicationDialog() {
-        Dialog<AdoptionApplication> dialog = new Dialog<>();
-        dialog.setTitle("提交领养申请");
-        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
-
-        TextField applyIdField = new TextField(String.valueOf(animalService.nextApplyId()));
-        TextField animalIdField = new TextField();
-        TextField applicantField = new TextField();
-        TextField phoneField = new TextField();
-        TextArea reasonArea = new TextArea();
-        reasonArea.setPrefRowCount(3);
-
-        GridPane form = form();
-        addFormRow(form, 0, "申请编号", applyIdField);
-        addFormRow(form, 1, "动物编号", animalIdField);
-        addFormRow(form, 2, "申请人", applicantField);
-        addFormRow(form, 3, "电话", phoneField);
-        addFormRow(form, 4, "申请理由", reasonArea);
-        dialog.getDialogPane().setContent(form);
-
-        protectDialog(dialog, () -> buildApplicationFromForm(applyIdField, animalIdField, applicantField,
-                phoneField, reasonArea));
-        dialog.setResultConverter(button -> button == ButtonType.OK
-                ? buildApplicationFromForm(applyIdField, animalIdField, applicantField, phoneField, reasonArea)
-                : null);
-        dialog.showAndWait().ifPresent(application -> {
-            try {
-                animalService.addAdoptionApplication(application);
-                refreshAll();
-            } catch (RuntimeException exception) {
-                showError(exception.getMessage());
-            }
-        });
-    }
-
-    private void reviewApplication(String status) {
-        AdoptionApplication application = animalService.reviewNextApplication(status);
-        if (application == null) {
-            showInfo("当前没有待审核申请");
-        } else {
-            showInfo(application.getApplicantName() + " 的申请结果：" + status);
-        }
-        refreshAll();
-    }
-
-    private Animal searchAnimal(int animalId, String mode) {
+    Animal searchAnimal(int animalId, String mode) {
         return switch (mode) {
             case "二分查找" -> animalService.binaryFindById(animalId);
-            case "二叉排序树查找" -> animalService.treeFindById(animalId);
+            case "二叉搜索树查找" -> animalService.treeFindById(animalId);
             default -> animalService.hashFindById(animalId);
         };
     }
 
-    private Animal buildAnimalFromForm(TextField idField, TextField nameField, ComboBox<String> typeBox,
+    Animal buildAnimalFromForm(TextField idField, TextField nameField, ComboBox<String> typeBox,
                                        ComboBox<String> genderBox, TextField ageField, TextField healthField,
                                        ComboBox<String> rescueBox, ComboBox<String> adoptBox,
                                        TextField locationField) {
@@ -447,51 +372,201 @@ public class MainController {
                 required(locationField.getText(), "发现地点"), LocalDateTime.now());
     }
 
-    private RescueTask buildTaskFromForm(TextField taskIdField, TextField animalIdField, TextField titleField,
-                                         TextField locationField, ComboBox<String> urgencyBox,
-                                         TextField volunteerField) {
-        return new RescueTask(parsePositiveInt(taskIdField.getText(), "任务编号"),
-                parsePositiveInt(animalIdField.getText(), "动物编号"),
-                required(titleField.getText(), "标题"),
-                required(locationField.getText(), "地点"),
-                urgencyBox.getValue(),
-                "待处理",
-                required(volunteerField.getText(), "志愿者"),
-                LocalDateTime.now());
+    void configureAnimalTable(TableView<Animal> table, ObservableList<Animal> rows) {
+        table.setItems(rows);
+        styleTable(table);
+        if (!table.getColumns().isEmpty()) {
+            return;
+        }
+        table.getColumns().add(column("编号", "id", 70));
+        table.getColumns().add(column("名称", "name", 90));
+        table.getColumns().add(column("类型", "type", 80));
+        table.getColumns().add(column("性别", "gender", 70));
+        table.getColumns().add(column("年龄", "age", 70));
+        table.getColumns().add(column("健康状态", "healthStatus", 130));
+        table.getColumns().add(column("救助状态", "rescueStatus", 110));
+        table.getColumns().add(column("领养状态", "adoptStatus", 120));
+        table.getColumns().add(column("发现地点", "foundLocation", 140));
+        table.getColumns().add(column("发现时间", "foundTimeText", 150));
     }
 
-    private AdoptionApplication buildApplicationFromForm(TextField applyIdField, TextField animalIdField,
-                                                         TextField applicantField, TextField phoneField,
-                                                         TextArea reasonArea) {
-        return new AdoptionApplication(parsePositiveInt(applyIdField.getText(), "申请编号"),
-                parsePositiveInt(animalIdField.getText(), "动物编号"),
-                required(applicantField.getText(), "申请人"),
-                required(phoneField.getText(), "电话"),
-                required(reasonArea.getText(), "申请理由"),
-                "待审核",
-                LocalDateTime.now());
+    void configureTaskTable(TableView<RescueTask> table, ObservableList<RescueTask> rows) {
+        table.setItems(rows);
+        styleTable(table);
+        if (!table.getColumns().isEmpty()) {
+            return;
+        }
+        table.getColumns().add(column("任务编号", "taskId", 80));
+        table.getColumns().add(column("动物编号", "animalId", 80));
+        table.getColumns().add(column("标题", "title", 150));
+        table.getColumns().add(column("地点", "location", 120));
+        table.getColumns().add(column("紧急程度", "urgencyLevel", 90));
+        table.getColumns().add(column("状态", "status", 90));
+        table.getColumns().add(column("志愿者", "volunteerName", 100));
+        table.getColumns().add(column("创建时间", "createTimeText", 140));
     }
 
-    private ComboBox<String> combo(String... values) {
-        ComboBox<String> comboBox = new ComboBox<>(FXCollections.observableArrayList(values));
-        comboBox.getSelectionModel().selectFirst();
-        return comboBox;
+    void configureApplicationTable(TableView<AdoptionApplication> table,
+                                           ObservableList<AdoptionApplication> rows) {
+        table.setItems(rows);
+        styleTable(table);
+        if (!table.getColumns().isEmpty()) {
+            return;
+        }
+        table.getColumns().add(column("申请编号", "applyId", 80));
+        table.getColumns().add(column("动物编号", "animalId", 80));
+        table.getColumns().add(column("申请人", "applicantName", 100));
+        table.getColumns().add(column("电话", "phone", 120));
+        table.getColumns().add(column("理由", "reason", 180));
+        table.getColumns().add(column("状态", "status", 90));
+        table.getColumns().add(column("申请时间", "applyTimeText", 140));
     }
 
-    private GridPane form() {
+    void configureOperationTable() {
+        operationTable.setItems(operationRows);
+        styleTable(operationTable);
+        if (!operationTable.getColumns().isEmpty()) {
+            return;
+        }
+        operationTable.getColumns().add(column("操作类型", "operationType", 120));
+        operationTable.getColumns().add(column("目标编号", "targetId", 80));
+        operationTable.getColumns().add(column("说明", "description", 260));
+        operationTable.getColumns().add(column("操作时间", "operationTimeText", 140));
+    }
+
+    void configureUserTable() {
+        userTable.setItems(userRows);
+        styleTable(userTable);
+        if (!userTable.getColumns().isEmpty()) {
+            return;
+        }
+        userTable.getColumns().add(column("编号", "id", 70));
+        userTable.getColumns().add(column("用户名", "username", 100));
+        userTable.getColumns().add(column("姓名", "realName", 120));
+        userTable.getColumns().add(column("电话", "phone", 120));
+        userTable.getColumns().add(column("邮箱", "email", 170));
+        userTable.getColumns().add(column("角色", "role", 90));
+        userTable.getColumns().add(column("启用", "enabled", 70));
+        userTable.getColumns().add(column("创建时间", "createTimeText", 140));
+        userTable.getColumns().add(column("最近登录", "lastLoginTimeText", 140));
+    }
+
+    <T> TableColumn<T, Object> column(String title, String property, double width) {
+        TableColumn<T, Object> column = new TableColumn<>(title);
+        column.setCellValueFactory(new PropertyValueFactory<>(property));
+        column.setPrefWidth(width);
+        return column;
+    }
+
+    BorderPane page() {
+        BorderPane content = new BorderPane();
+        content.setPadding(new Insets(22));
+        content.setStyle("-fx-background-color: " + BG + ";");
+        return content;
+    }
+
+    HBox toolbar(String title, String subtitle, javafx.scene.Node... actions) {
+        Label heading = new Label(title);
+        heading.setStyle("-fx-font-size: 24px; -fx-font-weight: bold; -fx-text-fill: " + TEXT + ";");
+        Label sub = new Label(subtitle);
+        sub.setStyle("-fx-font-size: 12px; -fx-text-fill: " + MUTED + ";");
+        VBox texts = new VBox(4, heading, sub);
+        HBox toolbar = new HBox(12);
+        toolbar.setAlignment(Pos.CENTER_LEFT);
+        toolbar.getChildren().add(texts);
+        HBox.setHgrow(texts, Priority.ALWAYS);
+        toolbar.getChildren().addAll(actions);
+        return toolbar;
+    }
+
+    javafx.scene.Node withMargin(javafx.scene.Node node) {
+        BorderPane.setMargin(node, new Insets(16, 0, 0, 0));
+        return node;
+    }
+
+    Label sectionTitle(String text) {
+        Label label = new Label(text);
+        label.setStyle("-fx-font-size: 15px; -fx-font-weight: bold; -fx-text-fill: " + TEXT + ";");
+        return label;
+    }
+
+    Button primaryButton(String text) {
+        Button button = new Button(text);
+        button.setPadding(new Insets(9, 15, 9, 15));
+        button.setStyle("-fx-background-color: " + PRIMARY + "; -fx-text-fill: white; -fx-background-radius: 6;"
+                + "-fx-font-size: 13px;");
+        return button;
+    }
+
+    Button secondaryButton(String text) {
+        Button button = new Button(text);
+        button.setPadding(new Insets(9, 15, 9, 15));
+        button.setStyle("-fx-background-color: #E8E2D8; -fx-text-fill: " + TEXT + "; -fx-background-radius: 6;"
+                + "-fx-font-size: 13px;");
+        return button;
+    }
+
+    private VBox fieldBlock(String label, javafx.scene.Node field) {
+        Label text = new Label(label);
+        text.setStyle("-fx-text-fill: " + TEXT + "; -fx-font-size: 12px;");
+        return new VBox(6, text, field);
+    }
+
+    GridPane form() {
         GridPane form = new GridPane();
-        form.setHgap(10);
-        form.setVgap(10);
-        form.setPadding(new Insets(10));
+        form.setHgap(12);
+        form.setVgap(12);
+        form.setPadding(new Insets(12));
         return form;
     }
 
-    private void addFormRow(GridPane form, int row, String label, javafx.scene.Node field) {
-        form.add(new Label(label), 0, row);
+    private VBox formPanel(GridPane form) {
+        VBox panel = new VBox(form);
+        panel.setMaxWidth(560);
+        panel.setPadding(new Insets(18));
+        panel.setStyle("-fx-background-color: " + PANEL + "; -fx-background-radius: 8;"
+                + "-fx-border-color: #DED8CF; -fx-border-radius: 8;");
+        return panel;
+    }
+
+    void addFormRow(GridPane form, int row, String label, javafx.scene.Node field) {
+        Label labelNode = new Label(label);
+        labelNode.setMinWidth(86);
+        labelNode.setStyle("-fx-text-fill: " + TEXT + ";");
+        form.add(labelNode, 0, row);
         form.add(field, 1, row);
     }
 
-    private void protectDialog(Dialog<?> dialog, Runnable validator) {
+    ComboBox<String> combo(String... values) {
+        ComboBox<String> comboBox = new ComboBox<>(FXCollections.observableArrayList(values));
+        comboBox.getSelectionModel().selectFirst();
+        comboBox.setStyle(inputStyle());
+        return comboBox;
+    }
+
+    void styleInput(TextField field) {
+        field.setStyle(inputStyle());
+        field.setPrefHeight(36);
+    }
+
+    String inputStyle() {
+        return "-fx-background-color: #FBFAF7; -fx-border-color: #D8D0C5;"
+                + "-fx-border-radius: 6; -fx-background-radius: 6; -fx-text-fill: " + TEXT + ";";
+    }
+
+    private void styleTable(TableView<?> table) {
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        table.setStyle("-fx-background-color: " + PANEL + "; -fx-border-color: #DED8CF;"
+                + "-fx-border-radius: 8; -fx-background-radius: 8;");
+    }
+
+    private Region gap(double height) {
+        Region region = new Region();
+        region.setMinHeight(height);
+        return region;
+    }
+
+    void protectDialog(Dialog<?> dialog, Runnable validator) {
         Button okButton = (Button) dialog.getDialogPane().lookupButton(ButtonType.OK);
         okButton.addEventFilter(ActionEvent.ACTION, event -> {
             try {
@@ -503,52 +578,92 @@ public class MainController {
         });
     }
 
-    private void refreshAll() {
+    void refreshAll() {
         animalRows.setAll(animalService.findAll());
         pendingTaskRows.setAll(animalService.pendingTasks());
         handledTaskRows.setAll(animalService.handledTasks());
         pendingApplyRows.setAll(animalService.pendingApplications());
         reviewedApplyRows.setAll(animalService.reviewedApplications());
         operationRows.setAll(animalService.operationHistory());
+        userRows.setAll(userService.findAllUsers());
     }
 
-    private String required(String value, String fieldName) {
+    boolean isAdmin() {
+        return currentUser != null && "ADMIN".equals(currentUser.getRole());
+    }
+
+    boolean isStaff() {
+        return currentUser != null && "STAFF".equals(currentUser.getRole());
+    }
+
+    private String roleText(String role) {
+        return switch (role) {
+            case "ADMIN" -> "管理员";
+            case "STAFF" -> "工作人员";
+            default -> "领养用户";
+        };
+    }
+
+    private void tryLoadUsers() {
+        try {
+            userService.loadUsers();
+        } catch (IOException exception) {
+            trySaveUsers();
+        }
+    }
+
+    void trySaveUsers() {
+        try {
+            userService.saveUsers();
+        } catch (IOException exception) {
+            showError("用户数据保存失败：" + exception.getMessage());
+        }
+    }
+
+    String required(String value, String fieldName) {
         String text = value == null ? "" : value.trim();
         if (text.isEmpty()) {
-            throw new IllegalArgumentException(fieldName + "不能为空");
+            throw new IllegalArgumentException(fieldName + "不能为空。");
         }
         return text;
     }
 
-    private int parsePositiveInt(String value, String fieldName) {
+    int parsePositiveInt(String value, String fieldName) {
         int number = parseNonNegativeInt(value, fieldName);
         if (number <= 0) {
-            throw new IllegalArgumentException(fieldName + "必须大于 0");
+            throw new IllegalArgumentException(fieldName + "必须大于 0。");
         }
         return number;
     }
 
-    private int parseNonNegativeInt(String value, String fieldName) {
+    int parseNonNegativeInt(String value, String fieldName) {
         try {
             int number = Integer.parseInt(required(value, fieldName));
             if (number < 0) {
-                throw new IllegalArgumentException(fieldName + "不能小于 0");
+                throw new IllegalArgumentException(fieldName + "不能小于 0。");
             }
             return number;
         } catch (NumberFormatException exception) {
-            throw new IllegalArgumentException(fieldName + "必须是整数");
+            throw new IllegalArgumentException(fieldName + "必须是整数。");
         }
     }
 
-    private void showError(String message) {
+    void validatePassword(String password) {
+        String value = required(password, "密码");
+        if (value.length() < 6) {
+            throw new IllegalArgumentException("密码至少需要 6 位。");
+        }
+    }
+
+    void showError(String message) {
         Alert alert = new Alert(Alert.AlertType.ERROR);
-        alert.setTitle("输入错误");
+        alert.setTitle("系统提示");
         alert.setHeaderText(null);
         alert.setContentText(message);
         alert.showAndWait();
     }
 
-    private void showInfo(String message) {
+    void showInfo(String message) {
         Alert alert = new Alert(Alert.AlertType.INFORMATION);
         alert.setTitle("系统提示");
         alert.setHeaderText(null);
